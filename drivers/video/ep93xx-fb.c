@@ -519,12 +519,15 @@ static int __devinit ep93xxfb_probe(struct platform_device *pdev)
 		goto failed;
 	}
 
-	res = request_mem_region(res->start, resource_size(res), pdev->name);
-	if (!res) {
-		err = -EBUSY;
-		goto failed;
-	}
-
+	/*
+	 * FIXME - We don't do a request_mem_region here because we are
+	 * sharing the register space with the backlight driver (see
+	 * drivers/video/backlight/ep93xx_bl.c) and doing so will cause
+	 * the second loaded driver to return -EBUSY.
+	 *
+	 * NOTE: No locking is required; the backlight does not touch
+	 * any of the framebuffer registers.
+	 */
 	fbi->res = res;
 	fbi->mmio_base = ioremap(res->start, resource_size(res));
 	if (!fbi->mmio_base) {
