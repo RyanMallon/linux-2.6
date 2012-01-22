@@ -17,11 +17,6 @@
 #include <linux/fb.h>
 #include <linux/backlight.h>
 
-#include <mach/hardware.h>
-
-#define EP93XX_RASTER_REG(x)		(EP93XX_RASTER_BASE + (x))
-#define EP93XX_RASTER_BRIGHTNESS	EP93XX_RASTER_REG(0x20)
-
 #define EP93XX_MAX_COUNT		255
 #define EP93XX_MAX_BRIGHT		255
 #define EP93XX_DEF_BRIGHT		128
@@ -35,7 +30,7 @@ static int ep93xxbl_set(struct backlight_device *bl, int brightness)
 {
 	struct ep93xxbl *ep93xxbl = bl_get_data(bl);
 
-	__raw_writel((brightness << 8) | EP93XX_MAX_COUNT, ep93xxbl->mmio);
+	writel((brightness << 8) | EP93XX_MAX_COUNT, ep93xxbl->mmio);
 
 	ep93xxbl->brightness = brightness;
 
@@ -70,21 +65,29 @@ static int __init ep93xxbl_probe(struct platform_device *dev)
 	struct ep93xxbl *ep93xxbl;
 	struct backlight_device *bl;
 	struct backlight_properties props;
+	struct resource *res;
 
 	ep93xxbl = devm_kzalloc(&dev->dev, sizeof(*ep93xxbl), GFP_KERNEL);
 	if (!ep93xxbl)
 		return -ENOMEM;
 
+	res = platform_get_resource(dev, IORESOURCE_MEM, 0);
+	if (!res)
+		return -ENXIO;
+
 	/*
 	 * This register is located in the range already ioremap'ed by
 	 * the framebuffer driver.  A MFD driver seems a bit of overkill
-	 * to handle this so use the static I/O mapping; this address
-	 * is already virtual.
+	 * to handle this so use just ioremap the memory without requesting
+	 * the memory first.
 	 *
 	 * NOTE: No locking is required; the framebuffer does not touch
 	 * this register.
 	 */
-	ep93xxbl->mmio = EP93XX_RASTER_BRIGHTNESS;
+	ep93xxbl->mmio = devm_ioremap(&dev->dev, res->start,
+				      resource_size(res));
+	if (!ep93xxbl->mmio)
+		return -ENXIO;
 
 	memset(&props, 0, sizeof(struct backlight_properties));
 	props.type = BACKLIGHT_RAW;
